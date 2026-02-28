@@ -1,0 +1,11 @@
+numpy==1.26.4
+pandas==2.3.3
+pandas-ta
+plotly
+scikit-learn
+scipy
+statsmodels
+streamlit
+torch==2.7.0
+transformers==4.51.3
+yfinance==0.2.66

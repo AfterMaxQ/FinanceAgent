@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金融数据挖掘智能体 - 项目展示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Noto Sans SC', sans-serif; scroll-behavior: smooth; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .gradient-text {
+            background: linear-gradient(to right, #2563EB, #7C3AED);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .tech-card {
+            transition: all 0.3s ease;
+        }
+        .tech-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+        /* 模型架构图连线样式 */
+        .flow-line {
+            position: absolute;
+            background-color: #cbd5e1;
+            z-index: 0;
+        }
+        .node-box {
+            position: relative;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <!-- 导航栏 -->
+    <nav class="fixed w-full bg-white/90 backdrop-blur-md shadow-sm z-50 border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex-shrink-0 flex items-center">
+                    <span class="font-bold text-xl tracking-tight text-slate-900">Quant<span class="text-indigo-600">Agent</span></span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-8">
+                        <a href="#overview" class="hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition">项目概览</a>
+                        <a href="#philosophy" class="hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition">Agent 潜力</a>
+                        <a href="#architecture" class="hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition">系统架构</a>
+                        <a href="#modeling" class="hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition">核心模型</a>
+                        <a href="#fundamental" class="hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition">财报分析</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header / Hero Section -->
+    <header id="overview" class="pt-32 pb-20 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <span class="inline-block py-1 px-3 rounded-full bg-indigo-50 text-indigo-600 text-sm font-semibold mb-4 border border-indigo-100">数据挖掘课程大作业</span>
+            <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6">
+                多模态金融决策 <span class="gradient-text">智能体</span>
+            </h1>
+            <p class="mt-4 max-w-2xl mx-auto text-xl text-slate-500">
+                融合量化计算的确定性与生成式 AI 的逻辑推理能力，构建下一代金融数据挖掘系统。
+            </p>
+            <div class="mt-8 flex justify-center gap-4">
+                <a href="#modeling" class="rounded-lg px-6 py-3 bg-indigo-600 text-white hover:bg-indigo-700 font-medium transition shadow-lg shadow-indigo-200">查看核心模型</a>
+                <a href="#fundamental" class="rounded-lg px-6 py-3 bg-white text-indigo-600 border border-slate-200 hover:bg-slate-50 font-medium transition">查看财报分析</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 核心理念 -->
+    <section id="philosophy" class="py-20 bg-slate-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-bold text-slate-900">Agent 模式：金融数据挖掘的新范式</h2>
+                <p class="mt-4 text-lg text-slate-600 max-w-3xl mx-auto">
+                    传统的金融数据挖掘往往止步于"预测数值"。利用 LLM 驱动的智能体模式，我们能够在充满噪音的市场中，实现从"数据"到"决策"的质变。
+                </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Card 1 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 tech-card">
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">噪音过滤与意图识别</h3>
+                    <p class="text-slate-600">金融市场充斥着噪音。LLM Agent 能够理解用户的自然语言查询（如"长期价值" vs "短期套利"），动态调整关注点，仅提取与意图相关的高价值信息，而非盲目罗列指标。</p>
+                </div>
+                <!-- Card 2 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 tech-card">
+                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">双脑协同架构</h3>
+                    <p class="text-slate-600">解决了 LLM "数学差、有幻觉" 的痛点。系统将逻辑推理（左脑）与精密量化计算（右脑）解耦。LLM 负责规划路径，专用工具负责数值计算，确保了分析的严谨性与灵活性。</p>
+                </div>
+                <!-- Card 3 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 tech-card">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">多模态交叉验证</h3>
+                    <p class="text-slate-600">不仅仅是看K线。Agent 能够综合处理结构化数据（财报、行情）和非结构化数据（新闻情感），并进行"交叉验证"，发现技术面与基本面的背离，挖掘深层 Alpha。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 系统架构 -->
+    <section id="architecture" class="py-20 bg-white border-y border-slate-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col lg:flex-row items-center gap-12">
+                <div class="lg:w-1/2">
+                    <h2 class="text-3xl font-bold text-slate-900 mb-6">系统架构：<br>SOP 驱动的智能决策流</h2>
+                    <p class="text-slate-600 mb-6 text-lg">
+                        本项目构建了一个基于标准化作业流程 (SOP) 的智能体架构。通过 DeepSeek V3 作为推理核心，调度下游专业的量化工具库。
+                    </p>
+                    <ul class="space-y-4">
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-bold mt-1">1</span>
+                            <span class="ml-4 text-slate-700"><strong>离线数据工厂 (Data Pipeline):</strong> 完成从 YFinance/Kaggle 数据源到 VIF 特征筛选的流程。</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold mt-1">2</span>
+                            <span class="ml-4 text-slate-700"><strong>意图识别与路由:</strong> Agent 首先判断用户意图（交易 or 投资 or 其他），动态选择分析路径。</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold mt-1">3</span>
+                            <span class="ml-4 text-slate-700"><strong>工具协同执行:</strong> 异步调度预测模型、财报分析、宏观风控等工具，获取原始情报。</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold mt-1">4</span>
+                            <span class="ml-4 text-slate-700"><strong>高度模块化 Agent:</strong> 工具层采用插件化注册机制（Tool Registry），可零耦合接入新的指标计算、行情源或风控模块，快速客制化自己的金融数据挖掘流程。</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="lg:w-1/2 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <!-- 图片占位符 -->
+                    <img src="balanced_architecture.png" alt="系统架构图" class="w-full h-auto rounded shadow-sm hover:scale-105 transition duration-500">
+                    <p class="text-center text-xs text-slate-400 mt-2">系统逻辑架构图</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 核心技术细节 (Hybrid Model) -->
+    <section id="modeling" class="py-24 bg-slate-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-bold text-slate-900">核心算法：基于门控注意力机制融合的双塔混合模型</h2>
+                <p class="mt-4 text-slate-600 max-w-2xl mx-auto">
+                    为了解决单一模态数据的局限性，我们设计了一个 <strong>Hybrid Multitask Model</strong>。该模型并行处理时序行情数据与新闻语义特征，通过注意力机制动态捕捉市场异动。
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+                
+                <!-- 左侧：CSS 绘制的模型架构图 -->
+                <div class="lg:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded-br-lg">Network Architecture</div>
+                    <!-- 数据流向标签 -->
+                    <div class="flex items-center gap-2 text-xs text-slate-500 mt-4 mb-2 justify-center">
+                        <span class="px-2 py-1 rounded-full bg-slate-100 border border-slate-200">Input</span>
+                        <span class="text-slate-300">→</span>
+                        <span class="px-2 py-1 rounded-full bg-blue-50 border border-blue-200">Temporal Tower</span>
+                        <span class="text-slate-300">+</span>
+                        <span class="px-2 py-1 rounded-full bg-purple-50 border border-purple-200">Text Tower</span>
+                        <span class="text-slate-300">→</span>
+                        <span class="px-2 py-1 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 border border-slate-200">Gated Fusion</span>
+                        <span class="text-slate-300">→</span>
+                        <span class="px-2 py-1 rounded-full bg-green-50 border border-green-200">Outputs</span>
+                    </div>
+                    
+                    <!-- 模型图容器 -->
+                    <div class="flex flex-col items-center gap-6 mt-6">
+                        
+                        <!-- 输入层 -->
+                        <div class="flex gap-8 w-full justify-center">
+                            <div class="flex flex-col items-center w-1/2">
+                                <div class="w-full bg-slate-100 border border-slate-300 rounded-lg p-3 text-center text-sm font-mono text-slate-600 node-box">
+                                    Scalar Features<br><span class="text-xs text-slate-400">[B, Seq, 18]</span>
+                                </div>
+                                <div class="text-xs text-slate-400 mt-1">VIF Selected</div>
+                            </div>
+                            <div class="flex flex-col items-center w-1/2">
+                                <div class="w-full bg-slate-100 border border-slate-300 rounded-lg p-3 text-center text-sm font-mono text-slate-600 node-box">
+                                    Text Embeddings<br><span class="text-xs text-slate-400">[B, Seq, 768]</span>
+                                </div>
+                                <div class="text-xs text-slate-400 mt-1">FinBERT CLS</div>
+                            </div>
+                        </div>
+
+                        <!-- 箭头向下 -->
+                        <div class="flex gap-8 w-full justify-center text-slate-300">
+                            <div class="w-1/2 flex justify-center">↓</div>
+                            <div class="w-1/2 flex justify-center">↓</div>
+                        </div>
+
+                        <!-- 特征提取层 (双塔) -->
+                        <div class="flex gap-8 w-full justify-center">
+                            <!-- Temporal Tower -->
+                            <div class="w-1/2 bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col items-center relative node-box">
+                                <span class="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wide">Temporal Tower</span>
+                                <div class="bg-white border border-blue-100 rounded p-2 w-full text-center text-sm font-semibold text-blue-800 shadow-sm">
+                                    LSTM Encoder
+                                </div>
+                                <div class="text-xs text-blue-400 mt-1 text-center">2 Layers, Hidden=64</div>
+                            </div>
+
+                            <!-- Text Tower -->
+                            <div class="w-1/2 bg-purple-50 border border-purple-200 rounded-xl p-4 flex flex-col items-center relative node-box">
+                                <span class="text-xs font-bold text-purple-600 mb-2 uppercase tracking-wide">Text Tower</span>
+                                <div class="bg-white border border-purple-100 rounded p-2 w-full text-center text-sm font-semibold text-purple-800 shadow-sm">
+                                    Transformer Encoder
+                                </div>
+                                <div class="text-xs text-purple-400 mt-1 text-center">4 Layers, 4 Heads</div>
+                            </div>
+                        </div>
+
+                        <!-- 箭头汇聚 -->
+                        <div class="text-slate-300 flex flex-col items-center -my-2">
+                            <span>↘ &nbsp; &nbsp; ↙</span>
+                        </div>
+
+                        <!-- 融合层 (核心) -->
+                        <div class="w-3/4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-[2px] shadow-lg node-box">
+                            <div class="bg-white rounded-[10px] p-4 text-center">
+                                <h4 class="font-bold text-slate-800 mb-1">Gated Cross-Attention Fusion</h4>
+                                <p class="text-xs text-slate-500 mb-2">Query: LSTM | Key/Value: Text</p>
+                                <div class="flex justify-center gap-2 text-xs font-mono bg-slate-50 p-2 rounded border border-slate-100">
+                                    <span class="text-purple-600">Gate = Sigmoid(Linear([H_t, H_text]))</span>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-2 italic">"动态调节不同市场环境下新闻的权重"</p>
+                            </div>
+                        </div>
+
+                        <!-- 箭头向下 -->
+                        <div class="text-slate-300">↓</div>
+
+                        <!-- 共享层 -->
+                        <div class="w-1/2 bg-slate-800 text-white rounded-lg p-2 text-center text-sm font-mono node-box">
+                            Shared FC Layer
+                        </div>
+
+                        <!-- 箭头分叉 -->
+                        <div class="text-slate-300 flex justify-center gap-12 w-full">
+                            <span>↙</span>
+                            <span>↘</span>
+                        </div>
+
+                        <!-- 输出头 (多任务) -->
+                        <div class="flex gap-4 w-full justify-center">
+                            <div class="w-1/3 border-t-4 border-green-500 bg-white shadow-sm p-3 rounded-b-lg text-center node-box">
+                                <div class="text-xs text-slate-400 uppercase font-bold">Classification</div>
+                                <div class="font-bold text-slate-800 mt-1">Direction</div>
+                                <div class="text-xs text-green-600 font-mono mt-1">Sigmoid</div>
+                            </div>
+                            <div class="w-1/3 border-t-4 border-blue-500 bg-white shadow-sm p-3 rounded-b-lg text-center node-box">
+                                <div class="text-xs text-slate-400 uppercase font-bold">Regression</div>
+                                <div class="font-bold text-slate-800 mt-1">Magnitude</div>
+                                <div class="text-xs text-blue-600 font-mono mt-1">Linear</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- 右侧：技术细节描述 -->
+                <div class="lg:col-span-2 space-y-8 pt-4">
+                    
+                    <!-- 亮点 1 -->
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm">1</span>
+                            异构数据特征对齐
+                        </h3>
+                        <p class="text-slate-600 text-sm mt-2 leading-relaxed">
+                            模型并非简单拼接特征。<strong>Temporal Tower</strong> (LSTM) 负责处理经 VIF 筛选的 18 个高频量化因子（如 ATR, MACD），捕捉市场微观结构；<strong>Text Tower</strong> (Transformer) 则处理 FinBERT 生成的新闻向量，捕捉宏观语义。
+                        </p>
+                    </div>
+
+                    <!-- 亮点 2 -->
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm">2</span>
+                            门控注意力机制 (Gate Mechanism)
+                        </h3>
+                        <p class="text-slate-600 text-sm mt-2 leading-relaxed">
+                            这是模型的核心创新。通过 <code class="bg-slate-100 px-1 py-0.5 rounded text-purple-700 font-mono text-xs">alpha * Attn + (1-alpha) * LSTM</code> 公式，模型能"自主决定"在当前时刻是更信任技术指标，还是更信任突发新闻。
+                        </p>
+                    </div>
+
+                    <!-- 亮点 3 -->
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm">3</span>
+                            多任务学习 (MTL)
+                        </h3>
+                        <p class="text-slate-600 text-sm mt-2 leading-relaxed">
+                            单一预测往往过拟合。我们强迫模型同时学习"涨跌方向"和"波动幅度"。共享层的设计使得两个任务相互正则化，提升了泛化能力。
+                        </p>
+                    </div>
+
+                    <!-- 验证指标卡片 -->
+                    <div class="bg-slate-900 rounded-xl p-6 text-white mt-8 shadow-xl">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Model Performance</h4>
+                        <div class="flex justify-between items-end border-b border-slate-700 pb-4 mb-4">
+                            <div>
+                                <div class="text-3xl font-bold text-green-400">71.0%</div>
+                                <div class="text-xs text-slate-400 mt-1">Validation DA (Directional Accuracy)</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xl font-bold text-blue-400">0.0068</div>
+                                <div class="text-xs text-slate-400 mt-1">RMSE (Magnitude)</div>
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-400 italic">
+                            * DA (方向准确率) 显著优于随机猜测 (50%)，表明模型有效捕捉了市场短期动能。
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 财报分析与SEC -->
+    <section id="fundamental" class="py-20 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col lg:flex-row-reverse items-center gap-16">
+                <div class="lg:w-1/2">
+                    <span class="text-indigo-600 font-bold text-sm tracking-wider uppercase mb-2 block">深度基本面洞察</span>
+                    <h2 class="text-3xl font-bold text-slate-900 mb-6">SEC 财报自动化分析</h2>
+                    <p class="text-slate-600 mb-6">
+                        真正的 Alpha 往往隐藏在财报的细节中。我们开发了基于 SEC 官方 API 的分析工具，让 Agent 具备了"读懂"公司家底的能力。
+                    </p>
+                    <div class="space-y-6">
+                        <div class="flex gap-4">
+                            <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 text-orange-600 font-bold">1</div>
+                            <div>
+                                <h4 class="font-bold text-slate-900">权威数据源</h4>
+                                <p class="text-sm text-slate-600">直连 SEC EDGAR 系统，提取 10-K 年报中的 XBRL 原始数据，拒绝二手数据的误差。</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 text-orange-600 font-bold">2</div>
+                            <div>
+                                <h4 class="font-bold text-slate-900">分层解析逻辑</h4>
+                                <p class="text-sm text-slate-600">工具自动提取三大报表核心数据（Key Metrics），并计算关键比率（如流动比率、负债权益比），提供"原始数据+分析师观点"的双层输出。</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 text-orange-600 font-bold">3</div>
+                            <div>
+                                <h4 class="font-bold text-slate-900">长期价值评估</h4>
+                                <p class="text-sm text-slate-600">Agent 能够基于此生成专业的财务健康度评级，判断公司护城河与现金流造血能力。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="lg:w-1/2">
+                    <!-- 模拟代码卡片 -->
+                    <div class="bg-slate-900 rounded-lg shadow-2xl p-6 font-mono text-xs text-slate-300 border border-slate-700">
+                        <div class="flex gap-2 mb-4">
+                            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                        </div>
+                        <div class="space-y-2">
+                            <p><span class="text-purple-400">def</span> <span class="text-blue-400">analyze_latest_filings</span>(self, ticker):</p>
+                            <p class="pl-4 text-slate-500"># 1. Fetch raw XBRL from SEC</p>
+                            <p class="pl-4">cik = get_cik(ticker)</p>
+                            <p class="pl-4">facts = get_company_facts(cik)</p>
+                            <br>
+                            <p class="pl-4 text-slate-500"># 2. Extract & Compute Ratios</p>
+                            <p class="pl-4">net_income = extract(facts, <span class="text-green-400">"NetIncomeLoss"</span>)</p>
+                            <p class="pl-4">ocf = extract(facts, <span class="text-green-400">"OperatingCashFlow"</span>)</p>
+                            <p class="pl-4">quality_ratio = ocf / net_income</p>
+                            <br>
+                            <p class="pl-4 text-slate-500"># 3. Generate Analyst Take</p>
+                            <p class="pl-4"><span class="text-purple-400">return</span> {</p>
+                            <p class="pl-8"><span class="text-green-400">"rating"</span>: <span class="text-yellow-300">"Excellent"</span>,</p>
+                            <p class="pl-8"><span class="text-green-400">"analysis"</span>: <span class="text-yellow-300">f"现金流充裕(Ratio={quality_ratio})..."</span></p>
+                            <p class="pl-4">}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 底部 -->
+    <footer class="bg-white border-t border-slate-200 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-slate-500 mb-4">Data Mining Course Project &copy; 2024</p>
+            <p class="text-sm text-slate-400">Powered by DeepSeek V3, PyTorch, Streamlit & SEC API</p>
+        </div>
+    </footer>
+
+</body>
+</html>

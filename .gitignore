@@ -1,0 +1,15 @@
+# 忽略文件夹
+/datas/
+/models/
+/.idea/
+/__pycache__/
+
+# 忽略特定类型的文件
+*.csv
+*.pkl
+*.log
+*.saz
+
+# 忽略虚拟环境文件夹 (如果存在)
+venv/
+.env
