@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 
 # --- SEC API 辅助函数 ---
 
-# 建议将User-Agent放入配置文件中
+
 USER_AGENT = "PersonalQuantProject/zhang.wei.123@email.com"
 
 # 重试配置
