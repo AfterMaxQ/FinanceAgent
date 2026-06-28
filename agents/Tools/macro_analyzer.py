@@ -151,13 +151,21 @@ class MacroAnalyzer:
         }
 
     # ---------------------- public API ---------------------- #
-    def analyze_market_regime(self, current_date: str) -> Dict:
+    def analyze_market_regime(self, current_date: Optional[str] = None, df: Optional[pd.DataFrame] = None) -> Dict:
+        if current_date is None:
+            current_date = pd.Timestamp.today().strftime("%Y-%m-%d")
         try:
             target_ts = pd.to_datetime(current_date, errors="coerce")
             if pd.isna(target_ts):
                 return {"error": f"无法解析日期: {current_date}"}
 
-            df = self._load_data_cached()
+            # 实时模式可注入新鲜的宏观数据（含 ^GSPC/^VIX/^TNX）；否则读本地 CSV
+            if df is None or df.empty:
+                df = self._load_data_cached()
+            else:
+                df = df.copy()
+                df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.tz_localize(None)
+                df = df.dropna(subset=["Date"])
 
             gspc_info = self._gspc_metrics(df, target_ts)
             vix_info = self._vix_metrics(df, target_ts)

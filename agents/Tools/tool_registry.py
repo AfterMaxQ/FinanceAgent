@@ -18,6 +18,8 @@ from agents.Tools.similarity_search import SimilaritySearcher
 from agents.Tools.macro_analyzer import MacroAnalyzer
 # 新增：导入财报分析工具
 from agents.Tools.financial_statement_analyzer import FinancialStatementAnalyzer
+# 新增：轻量级工具（技术快照 + 实时新闻情感）
+from agents.Tools.simple_tools import TechnicalSnapshotTool, RecentNewsTool
 
 # DeepSeek API 工具定义列表
 tools: List[Dict[str, Any]] = [
@@ -226,6 +228,55 @@ tools: List[Dict[str, Any]] = [
                 "required": ["ticker"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_technical_snapshot",
+            "description": (
+                "计算并解读指定股票当前的技术指标快照，包括 RSI(14)、MACD(12,26,9)、"
+                "SMA(5/20) 和布林带(20,2) 的最新读数，并给出大白话状态解读"
+                "（超买/超卖、金叉/死叉、强弱趋势等）。适用于快速了解一只股票当前的技术面状况。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {
+                        "type": "string",
+                        "description": "股票代码（如 'AAPL'），用于获取历史价格数据"
+                    }
+                },
+                "required": ["ticker"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_recent_news",
+            "description": (
+                "获取指定股票的最近新闻标题，并用 FinBERT 对每条新闻进行情感打分"
+                "（正面/中性/负面），返回新闻列表、逐条情感分与整体情感倾向。"
+                "适用于了解一只股票近期的市场舆论与情绪。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {
+                        "type": "string",
+                        "description": "股票代码（如 'AAPL'）"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "最多返回的新闻条数，默认 8",
+                        "default": 8,
+                        "minimum": 1,
+                        "maximum": 20
+                    }
+                },
+                "required": ["ticker"]
+            }
+        }
     }
 ]
 
@@ -239,7 +290,10 @@ TOOL_MAPPING: Dict[str, Type] = {
     "search_similar_periods": SimilaritySearcher,
     "analyze_market_regime": MacroAnalyzer,
     # 新增：财报分析工具的映射
-    "analyze_financial_statements": FinancialStatementAnalyzer
+    "analyze_financial_statements": FinancialStatementAnalyzer,
+    # 新增：轻量级工具映射
+    "get_technical_snapshot": TechnicalSnapshotTool,
+    "fetch_recent_news": RecentNewsTool,
 }
 
 # 工具初始化参数映射（用于需要特殊初始化参数的工具）

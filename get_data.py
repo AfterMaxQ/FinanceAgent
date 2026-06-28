@@ -13,9 +13,14 @@ If --start/--end are omitted, yfinance period is used (default 1y).
 """
 
 import os
-proxy = 'http://127.0.0.1:7897'
-os.environ['HTTP_PROXY'] = proxy
-os.environ['HTTPS_PROXY'] = proxy
+# 代理可配置：默认不启用，避免在无代理的环境（如面试演示机）下直接失败。
+# 需要走代理时，设置环境变量 FINAGENT_PROXY 或 HTTP_PROXY，例如：
+#   set FINAGENT_PROXY=http://127.0.0.1:7897   (Windows)
+#   export FINAGENT_PROXY=http://127.0.0.1:7897 (Linux/Mac)
+proxy = os.environ.get('FINAGENT_PROXY') or os.environ.get('HTTP_PROXY')
+if proxy:
+    os.environ['HTTP_PROXY'] = proxy
+    os.environ['HTTPS_PROXY'] = proxy
 
 
 import argparse

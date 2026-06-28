@@ -1,132 +1,83 @@
+"""金融决策智能体 (Financial Agent)
+=================================
+
+本模块负责把 **DeepSeek LLM**（左脑：意图路由 + 函数调用 + 报告生成）
+与 **本地量化工具**（右脑：T+1 预测、支撑阻力、相似形态、宏观、新闻情感、SEC 财报）
+组装成一个完整的、可流式可视化的金融分析智能体。
+
+模块结构（重构后）
+------------------
+1. :class:`_PromptBuilder`
+   - 仅负责构建 system prompt + 单轮上下文，逻辑可独立复用与测试。
+2. :class:`_ToolExecutor`
+   - 工具路由 / 入参过滤 / 数据获取（实时 vs 本地）/ 结构化错误返回。
+3. :class:`FinancialAgent`
+   - 唯一对外暴露的「编排器」。保持原有 :meth:`run` / :meth:`run_stream` API 不变，
+     使前端无需任何改动即可继续工作。
+
+公开接口（向后兼容）
+--------------------
+- :meth:`FinancialAgent.run`            同步模式，返回最终文本
+- :meth:`FinancialAgent.run_stream`     流式模式，逐步 yield 事件字典
+"""
+from __future__ import annotations
+
 import json
 import logging
-from typing import Dict, List, Optional, Any
+import time
+from typing import Any, Dict, Iterator, List, Optional, Tuple
+
 import pandas as pd
 
-# 尝试导入配置
+# ---- 配置：失败则提供本地降级 ---- #
 try:
     from src.config.settings import deepseek_settings
 except ImportError:
     from pathlib import Path
+
     _current_file = Path(__file__).resolve()
     _project_root = _current_file.parent.parent
-    
-    class SimpleSettings:
-        def __init__(self, **kwargs):
+
+    class _SimpleSettings:
+        def __init__(self, **kwargs: Any) -> None:
             for k, v in kwargs.items():
                 setattr(self, k, v)
-    
-    deepseek_settings = SimpleSettings(
+
+    deepseek_settings = _SimpleSettings(  # type: ignore[assignment]
         deepseek_api_key="",
         deepseek_base_url="https://api.deepseek.com",
-        deepseek_model="deepseek-chat",
-        deepseek_timeout=60
+        # 升级到 DeepSeek V4 Pro（deepseek-chat 别名将于 2026-07-24 停用）
+        deepseek_model="deepseek-v4-pro",
+        deepseek_timeout=60,
     )
 
-# 导入工具注册表
-from agents.Tools.tool_registry import tools, TOOL_MAPPING
+# ---- 工具注册表 & 数据提供层 ---- #
+from agents.Tools.tool_registry import TOOL_MAPPING, tools
+from agents.data_provider import DataProvider
 
-# 配置日志
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 try:
     from openai import OpenAI
+
     OPENAI_SDK_AVAILABLE = True
 except ImportError:
     OPENAI_SDK_AVAILABLE = False
     logger.warning("openai SDK 未安装。请安装：pip install openai")
 
 
-class FinancialAgent:
-    """
-    金融决策智能体 (同步/非流式版本)
-    """
-    
-    def __init__(self, api_key: Optional[str] = None):
-        if not OPENAI_SDK_AVAILABLE:
-            raise ValueError("OpenAI SDK 未安装")
-        
-        self.api_key = api_key or deepseek_settings.deepseek_api_key
-        if not self.api_key:
-            raise ValueError("DeepSeek API Key 未设置")
-        
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=deepseek_settings.deepseek_base_url,
-            timeout=deepseek_settings.deepseek_timeout
-        )
-        self.model = deepseek_settings.deepseek_model
-        self.tools = tools
-        self.tool_mapping = TOOL_MAPPING
+# 接口版本号：与前端缓存键约定，签名/字段变更时递增即可让旧实例自动失效
+AGENT_INTERFACE_VERSION = "2026-06-28.v4"
+
+# 工具调用上限（防止 LLM 死循环）
+_MAX_TOOL_ROUNDS = 10
 
 
-    def run(
-        self,
-        user_prompt: str,
-        chat_history: List[Dict[str, str]],
-        stock_data: pd.DataFrame,
-        current_price: float,
-        ticker: str
-    ) -> str:
-        """
-        执行智能体推理（同步模式）。
-        会自动处理多轮工具调用，直到模型生成最终回答。
-        """
-        try:
-            # 1. 构建初始消息
-            messages = self._build_messages(user_prompt, chat_history, stock_data, current_price, ticker)
-            
-            # 2. 循环处理工具调用（最多 10 轮，防止死循环）
-            for _ in range(10):
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    tools=self.tools,
-                    tool_choice="auto",
-                    temperature=1.0, # 调高温度，生成更具发散性的回答
-                    max_tokens=8192 # 设置最大token数，支持更长的分析报告
-                )
-                
-                message = response.choices[0].message
-                
-                # 将助手的消息加入历史
-                # 兼容旧版和新版 OpenAI SDK
-                if hasattr(message, 'model_dump'):
-                    messages.append(message.model_dump(exclude_unset=True))
-                else:
-                    msg_dict = {"role": "assistant", "content": message.content}
-                    if message.tool_calls:
-                        msg_dict["tool_calls"] = message.tool_calls
-                    messages.append(msg_dict)
-
-                # 如果没有工具调用，说明已经得到最终结果，直接返回
-                if not message.tool_calls:
-                    return message.content
-
-                # 3. 执行工具
-                logger.info(f"检测到 {len(message.tool_calls)} 个工具调用请求...")
-                for tool_call in message.tool_calls:
-                    result_str = self._execute_tool(tool_call, stock_data, current_price, ticker)
-                    
-                    # 将工具结果加入消息历史
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": result_str
-                    })
-            
-            return "分析过程过长，已强制终止。请尝试简化您的问题。"
-
-
-        except Exception as e:
-            logger.error(f"Agent 运行错误: {e}", exc_info=True)
-            return f"抱歉，系统遇到错误: {str(e)}"
-
-
-    def _build_messages(self, user_prompt, chat_history, stock_data, current_price, ticker):
-        """构建提示词"""
-        system_content = """
+# --------------------------------------------------------------------------- #
+# 1. PromptBuilder
+# --------------------------------------------------------------------------- #
+_SYSTEM_PROMPT = """
 
 # 角色与使命 (Role & Mission)
 
@@ -232,87 +183,506 @@ class FinancialAgent:
 
 
 
+# 可用的快捷工具 (Quick Tools)
+
+- `get_technical_snapshot`: 快速获取某股票当前 RSI/MACD/SMA/布林带读数及大白话解读，适合快速技术面体检。
+- `fetch_recent_news`: 获取最近新闻并用 FinBERT 打分，适合判断近期市场情绪。
+
+
+
 # 行为边界 (Behavioral Boundaries)
 
 - **禁止提供直接投资建议:** 你的角色是分析师，不是投资顾问。严禁使用"你应该买入"、"建议加仓"等指令性语言。应使用"数据显示出看涨信号"、"价格接近关键支撑"等客观描述。
 
 - **数据驱动:** 你的每一句结论都必须有前面工具返回的数据作为依据。
 
+- **工具错误处理:** 若某个工具返回形如 `{"status":"error","reason":...}` 的结果，说明该项数据暂不可用。你应明确指出该维度数据缺失，并**基于其余可用数据继续分析**，绝不可编造缺失的数据。
+
 - **高效沟通:** 如果用户只是闲聊或问候，直接友好回答，**不要**调用任何工具。
 
 """
-        
+
+
+class _PromptBuilder:
+    """构建发送给 LLM 的 messages 列表。"""
+
+    SYSTEM_PROMPT = _SYSTEM_PROMPT
+
+    def build(
+        self,
+        user_prompt: str,
+        chat_history: List[Dict[str, Any]],
+        stock_data: pd.DataFrame,
+        current_price: float,
+        ticker: str,
+        current_date: str,
+    ) -> List[Dict[str, Any]]:
         context = (
             f"股票: {ticker}\n"
             f"现价: {current_price}\n"
-            f"数据量: {len(stock_data)}条\n"
+            f"当前日期: {current_date}（调用 analyze_market_regime 时必须使用此日期，禁止自行推断或捏造日期）\n"
+            f"数据量: {len(stock_data) if stock_data is not None else 0}条\n"
             f"问题: {user_prompt}"
         )
-        
-        messages = [{"role": "system", "content": system_content}]
-        messages.extend(chat_history)
+
+        messages: List[Dict[str, Any]] = [{"role": "system", "content": self.SYSTEM_PROMPT}]
+        messages.extend(_sanitize_history(chat_history))
         messages.append({"role": "user", "content": context})
         return messages
 
 
-    def _execute_tool(self, tool_call, stock_data, current_price, ticker):
-        """执行工具"""
-        name = tool_call.function.name
+def _sanitize_history(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """过滤掉前端展示用、不属于 LLM 上下文的消息字段。
+
+    - 仅保留 role / content / tool_calls / tool_call_id / name 等 OpenAI 规范字段
+    - 丢弃 None content（除非是 assistant 工具调用消息）
+    """
+    cleaned: List[Dict[str, Any]] = []
+    allowed_keys = {"role", "content", "tool_calls", "tool_call_id", "name"}
+    for msg in history or []:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role")
+        if role not in ("user", "assistant", "system", "tool"):
+            continue
+        item = {k: v for k, v in msg.items() if k in allowed_keys}
+        if item.get("content") is None and "tool_calls" not in item:
+            continue
+        cleaned.append(item)
+    return cleaned
+
+
+# --------------------------------------------------------------------------- #
+# 2. ToolExecutor
+# --------------------------------------------------------------------------- #
+class _ToolExecutor:
+    """工具调用路由器：根据 LLM 返回的 function_name 找到对应工具并执行。
+
+    所有 **业务工具的实际逻辑都没有改变**，本类只负责：
+      - 入参清洗 / 过滤
+      - 数据来源决策（实时 vs 本地）
+      - 异常 → 结构化 `{"status":"error","reason":...}`
+      - 计时
+    """
+
+    def __init__(self, data_provider: DataProvider, realtime: bool = False):
+        self.data_provider = data_provider
+        self.realtime = realtime
+        self._feature_builder: Any = None  # 延迟加载
+
+    # ---------- 公共入口 ---------- #
+    def execute(
+        self,
+        name: str,
+        args: Dict[str, Any],
+        stock_data: pd.DataFrame,
+        current_price: float,
+        ticker: str,
+        current_date: Optional[str] = None,
+    ) -> Tuple[Dict[str, Any], float]:
+        start = time.time()
         try:
-            args = json.loads(tool_call.function.arguments)
-            logger.info(f"执行工具: {name}, 参数: {args}")
-            
-            if name not in self.tool_mapping:
-                return f"错误: 工具 {name} 不存在"
-            
-            tool_cls = self.tool_mapping[name]
-            tool = tool_cls()
-            
-            # 根据不同工具分发
-            if name == "get_stock_prediction" or name == "predict":
-                res = tool.predict(simulation_data=stock_data, current_price=current_price)
-            elif name == "get_support_resistance" or name == "calculate_levels":
-                allowed = {"window", "use_weighted", "bandwidth"}
-                filtered_args = {k: v for k, v in args.items() if k in allowed}
-                res = tool.calculate_levels(
-                    df=stock_data,
-                    current_price=current_price,
-                    **filtered_args
+            logger.info("执行工具: %s, 参数: %s", name, args)
+            target = (args.get("ticker") or ticker or "").upper().strip()
+            result = self._dispatch(name, args, stock_data, current_price, ticker, current_date, target)
+            return result, time.time() - start
+        except Exception as exc:  # noqa: BLE001
+            logger.error("工具执行出错 (%s): %s", name, exc, exc_info=True)
+            return _err(str(exc)), time.time() - start
+
+    # ---------- 路由 ---------- #
+    def _dispatch(
+        self,
+        name: str,
+        args: Dict[str, Any],
+        stock_data: pd.DataFrame,
+        current_price: float,
+        ticker: str,
+        current_date: Optional[str],
+        target: str,
+    ) -> Dict[str, Any]:
+
+        # --- T+1 预测 --- #
+        if name in ("get_stock_prediction", "predict"):
+            df = self._resolve_feature_df(stock_data, target, ticker)
+            if df is None or df.empty:
+                return _err(
+                    f"无法获取 {target} 的特征数据（实时/本地均失败，或缺少 pandas_ta 依赖）"
                 )
-            elif name == "find_similar_patterns" or name == "search_similar_periods":
-                similarity_method = args.pop("similarity_method", "euclidean")
-                if similarity_method not in ("euclidean", "cosine"):
-                    logger.warning(
-                        f"收到不支持的 similarity_method={similarity_method}，已回退为 euclidean"
+            price = _price_from_df(df, current_price, target, ticker)
+            tool = TOOL_MAPPING["predict"]()
+            return tool.predict(simulation_data=df, current_price=price)
+
+        # --- 支撑/阻力位 --- #
+        if name in ("get_support_resistance", "calculate_levels"):
+            df = self._resolve_ohlcv(stock_data, target, ticker)
+            if df is None or df.empty:
+                return _err(f"无法获取 {target} 的行情数据")
+            price = _price_from_df(df, current_price, target, ticker)
+            allowed = {"window", "use_weighted", "bandwidth"}
+            filtered = {k: v for k, v in args.items() if k in allowed}
+            tool = TOOL_MAPPING["calculate_levels"]()
+            return tool.calculate_levels(df=df, current_price=price, **filtered)
+
+        # --- 历史相似形态 --- #
+        if name in ("find_similar_patterns", "search_similar_periods"):
+            df = self._resolve_ohlcv(stock_data, target, ticker)
+            if df is None or df.empty:
+                return _err(f"无法获取 {target} 的行情数据")
+            similarity_method = args.get("similarity_method", "euclidean")
+            if similarity_method not in ("euclidean", "cosine"):
+                similarity_method = "euclidean"
+            tool = TOOL_MAPPING["search_similar_periods"](similarity_method=similarity_method)
+            allowed = {"query_window", "top_k", "subsequent_days"}
+            filtered = {k: v for k, v in args.items() if k in allowed}
+            matches = tool.search_similar_periods(df=df, **filtered)
+            return {"matches": matches}
+
+        # --- 新闻情感（旧接口兼容） --- #
+        if name in ("get_news_and_sentiment", "calc_score"):
+            tool = TOOL_MAPPING["calc_score"]()
+            if hasattr(tool, "get_news_and_sentiment"):
+                df = self._resolve_ohlcv(stock_data, target, ticker)
+                return tool.get_news_and_sentiment(df=df, end_date=df["Date"].max())
+            texts = args.get("texts", [])
+            return {"avg_sentiment": tool.calc_score(texts=texts), "count": len(texts)}
+
+        if name == "classify_texts":
+            tool = TOOL_MAPPING["classify_texts"]()
+            return {"classifications": tool.classify_texts(texts=args.get("texts", []))}
+
+        # --- 宏观环境 --- #
+        if name == "analyze_market_regime":
+            # 强制使用应用层传入的真实日期，忽略 LLM 自行推断/捏造
+            regime_date = current_date or args.get("current_date") or pd.Timestamp.today().strftime("%Y-%m-%d")
+            macro_df = self.data_provider.get_macro() if self.realtime else None
+            tool = TOOL_MAPPING["analyze_market_regime"]()
+            return tool.analyze_market_regime(current_date=regime_date, df=macro_df)
+
+        # --- SEC 财报 --- #
+        if name == "analyze_financial_statements":
+            tool = TOOL_MAPPING["analyze_financial_statements"]()
+            return tool.analyze_latest_filings(target)
+
+        # --- 技术指标快照 --- #
+        if name == "get_technical_snapshot":
+            df = self._resolve_ohlcv(stock_data, target, ticker)
+            if df is None or df.empty:
+                return _err(f"无法获取 {target} 的行情数据")
+            tool = TOOL_MAPPING["get_technical_snapshot"]()
+            return tool.get_technical_snapshot(df=df, ticker=target)
+
+        # --- 实时新闻情感 --- #
+        if name == "fetch_recent_news":
+            limit = int(args.get("limit", 8))
+            tool = TOOL_MAPPING["fetch_recent_news"](provider=self.data_provider)
+            return tool.fetch_recent_news(ticker=target, limit=limit)
+
+        return _err(f"未知工具调用: {name}")
+
+    # ---------- 数据来源辅助 ---------- #
+    def _get_feature_builder(self) -> Any:
+        if self._feature_builder is None:
+            try:
+                from agents.realtime_features import RealtimeFeatureBuilder
+
+                self._feature_builder = RealtimeFeatureBuilder(provider=self.data_provider)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("实时特征构建器不可用: %s", exc)
+                self._feature_builder = False
+        return self._feature_builder or None
+
+    def _resolve_ohlcv(self, stock_data: pd.DataFrame, target: str, default_ticker: str) -> pd.DataFrame:
+        if (
+            stock_data is not None
+            and not stock_data.empty
+            and target == (default_ticker or "").upper().strip()
+        ):
+            return stock_data
+        return self.data_provider.get_ohlcv(target)
+
+    def _resolve_feature_df(
+        self, stock_data: pd.DataFrame, target: str, default_ticker: str
+    ) -> Optional[pd.DataFrame]:
+        if (
+            stock_data is not None
+            and not stock_data.empty
+            and target == (default_ticker or "").upper().strip()
+        ):
+            return stock_data
+        builder = self._get_feature_builder()
+        if builder is None:
+            return None
+        built = builder.build_features(target)
+        if built.get("error"):
+            logger.warning("为 %s 现算特征失败: %s", target, built["error"])
+        return built.get("data")
+
+
+# --------------------------------------------------------------------------- #
+# 静态工具函数
+# --------------------------------------------------------------------------- #
+def _err(reason: str) -> Dict[str, Any]:
+    """统一的结构化错误返回，便于 LLM 理解并降级处理。"""
+    return {"status": "error", "reason": reason}
+
+
+def _price_from_df(df: pd.DataFrame, current_price: Any, target: str, default_ticker: str) -> Any:
+    if target == (default_ticker or "").upper().strip() and current_price:
+        return current_price
+    if df is not None and not df.empty and "Close" in df.columns:
+        return float(df["Close"].iloc[-1])
+    return current_price
+
+
+# --------------------------------------------------------------------------- #
+# 3. FinancialAgent —— 编排器（对外唯一入口）
+# --------------------------------------------------------------------------- #
+class FinancialAgent:
+    """金融决策智能体。
+
+    用法（向后兼容）::
+
+        agent = FinancialAgent(api_key=..., realtime=True, data_provider=...)
+        for event in agent.run_stream(prompt, history, df, price, ticker, current_date=date):
+            ...
+    """
+
+    INTERFACE_VERSION = AGENT_INTERFACE_VERSION
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        realtime: bool = False,
+        data_provider: Optional[DataProvider] = None,
+    ):
+        if not OPENAI_SDK_AVAILABLE:
+            raise ValueError("OpenAI SDK 未安装")
+
+        self.api_key = api_key or deepseek_settings.deepseek_api_key
+        if not self.api_key:
+            raise ValueError("DeepSeek API Key 未设置")
+
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=deepseek_settings.deepseek_base_url,
+            timeout=deepseek_settings.deepseek_timeout,
+        )
+        self.model = deepseek_settings.deepseek_model
+        self.tools = tools
+        self.tool_mapping = TOOL_MAPPING  # 兼容旧代码直接访问
+        self.realtime = realtime
+        self.data_provider = data_provider or DataProvider()
+
+        # 子组件
+        self._prompt_builder = _PromptBuilder()
+        self._executor = _ToolExecutor(self.data_provider, realtime=self.realtime)
+
+    # ----- 让外部修改 realtime 时同步到 executor ----- #
+    @property
+    def realtime(self) -> bool:  # type: ignore[override]
+        return self._realtime
+
+    @realtime.setter
+    def realtime(self, value: bool) -> None:
+        self._realtime = bool(value)
+        # 当 executor 尚未初始化时（__init__ 内首次赋值），跳过同步
+        executor = getattr(self, "_executor", None)
+        if executor is not None:
+            executor.realtime = self._realtime
+
+    # ========================================================== #
+    # 同步入口（向后兼容）
+    # ========================================================== #
+    def run(
+        self,
+        user_prompt: str,
+        chat_history: List[Dict[str, Any]],
+        stock_data: pd.DataFrame,
+        current_price: float,
+        ticker: str,
+        current_date: Optional[str] = None,
+    ) -> str:
+        """同步模式：消费事件流并返回最终文本回答。"""
+        final_parts: List[str] = []
+        for event in self.run_stream(
+            user_prompt,
+            chat_history,
+            stock_data,
+            current_price,
+            ticker,
+            current_date=current_date,
+        ):
+            etype = event.get("type")
+            if etype == "final":
+                return event.get("content", "")
+            if etype == "answer_delta":
+                final_parts.append(event.get("text", ""))
+            elif etype == "error":
+                return f"抱歉，系统遇到错误: {event.get('message', '未知错误')}"
+        return "".join(final_parts) or "（未生成回答）"
+
+    # ========================================================== #
+    # 流式入口
+    # ========================================================== #
+    def run_stream(
+        self,
+        user_prompt: str,
+        chat_history: List[Dict[str, Any]],
+        stock_data: pd.DataFrame,
+        current_price: float,
+        ticker: str,
+        current_date: Optional[str] = None,
+    ) -> Iterator[Dict[str, Any]]:
+        """流式执行智能体推理，逐步产出结构化事件。
+
+        事件类型：
+        - ``thinking_delta`` ``{text}``                 模型思考过程增量
+        - ``answer_delta``   ``{text}``                 最终回答增量
+        - ``tool_call``      ``{name, args}``           即将执行某工具
+        - ``tool_result``    ``{name, result, elapsed}``工具执行完成
+        - ``final``          ``{content, tool_count, total_tool_time}``
+        - ``error``          ``{message}``
+        """
+        tool_count = 0
+        total_tool_time = 0.0
+        _current_date = current_date or pd.Timestamp.today().strftime("%Y-%m-%d")
+
+        try:
+            messages = self._prompt_builder.build(
+                user_prompt, chat_history, stock_data, current_price, ticker, _current_date
+            )
+
+            for _round in range(_MAX_TOOL_ROUNDS):
+                full_content, ordered_tool_calls = yield from self._stream_one_round(messages)
+
+                # 本轮无工具调用 -> 最终回答
+                if not ordered_tool_calls:
+                    yield {
+                        "type": "final",
+                        "content": full_content,
+                        "tool_count": tool_count,
+                        "total_tool_time": round(total_tool_time, 2),
+                    }
+                    return
+
+                # 把 assistant tool_calls 消息追加回历史
+                assistant_tool_calls = [
+                    {
+                        "id": slot["id"] or f"call_{i}",
+                        "type": "function",
+                        "function": {"name": slot["name"], "arguments": slot["args"] or "{}"},
+                    }
+                    for i, slot in enumerate(ordered_tool_calls)
+                ]
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": full_content or None,
+                        "tool_calls": assistant_tool_calls,
+                    }
+                )
+
+                # 逐个执行工具并产出事件
+                logger.info("检测到 %d 个工具调用请求...", len(assistant_tool_calls))
+                for call in assistant_tool_calls:
+                    name = call["function"]["name"]
+                    try:
+                        parsed_args = json.loads(call["function"]["arguments"] or "{}")
+                    except json.JSONDecodeError:
+                        parsed_args = {}
+
+                    yield {"type": "tool_call", "name": name, "args": parsed_args}
+
+                    result_obj, elapsed = self._executor.execute(
+                        name,
+                        parsed_args,
+                        stock_data,
+                        current_price,
+                        ticker,
+                        _current_date,
                     )
-                    similarity_method = "euclidean"
-                tool = tool_cls(similarity_method=similarity_method)
-                allowed = {"query_window", "top_k", "subsequent_days"}
-                filtered_args = {k: v for k, v in args.items() if k in allowed}
-                res = tool.search_similar_periods(
-                    df=stock_data,
-                    **filtered_args
-                )
-            elif name == "get_news_and_sentiment" or name == "calc_score":
-                # 兼容旧版和新版工具名
-                if hasattr(tool, 'get_news_and_sentiment'):
-                    res = tool.get_news_and_sentiment(df=stock_data, end_date=stock_data['Date'].max(), **args)
-                else:
-                    texts = args.get('texts', [])
-                    res = tool.calc_score(texts=texts)
-            elif name == "classify_texts":
-                res = tool.classify_texts(texts=args.get('texts', []))
-            elif name == "analyze_market_regime":
-                current_date = args.get("current_date")
-                res = tool.analyze_market_regime(current_date=current_date)
-            elif name == "analyze_financial_statements":
-                # SEC财报分析工具
-                ticker_arg = args.get("ticker", ticker)  # 优先使用参数中的ticker，否则使用传入的ticker
-                res = tool.analyze_latest_filings(ticker_arg)
-            else:
-                return f"未知工具调用: {name}"
-                
-            return json.dumps(res, ensure_ascii=False, default=str)
-            
-        except Exception as e:
-            return f"工具执行出错: {str(e)}"
+                    tool_count += 1
+                    total_tool_time += elapsed
+
+                    yield {
+                        "type": "tool_result",
+                        "name": name,
+                        "result": result_obj,
+                        "elapsed": round(elapsed, 2),
+                    }
+
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call["id"],
+                            "content": json.dumps(result_obj, ensure_ascii=False, default=str),
+                        }
+                    )
+
+            yield {
+                "type": "final",
+                "content": "分析过程过长，已强制终止。请尝试简化您的问题。",
+                "tool_count": tool_count,
+                "total_tool_time": round(total_tool_time, 2),
+            }
+
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Agent 运行错误: %s", exc, exc_info=True)
+            yield {"type": "error", "message": str(exc)}
+
+    # ---------------------------------------------------------- #
+    # 单轮流式：消费一次 chat.completions stream，
+    # yield thinking/answer 增量；返回 (完整文本, ordered_tool_calls)
+    # ---------------------------------------------------------- #
+    def _stream_one_round(
+        self, messages: List[Dict[str, Any]]
+    ) -> Iterator[Dict[str, Any]]:  # type: ignore[override]
+        stream = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            tools=self.tools,
+            tool_choice="auto",
+            temperature=0.3,  # 金融分析需结论可复现，低温度
+            max_tokens=8192,
+            stream=True,
+        )
+
+        content_parts: List[str] = []
+        tool_calls_accum: Dict[int, Dict[str, str]] = {}
+
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+
+            # 思考过程（DeepSeek V4 thinking）
+            reasoning = getattr(delta, "reasoning_content", None)
+            if reasoning:
+                yield {"type": "thinking_delta", "text": reasoning}
+
+            # 正文
+            if getattr(delta, "content", None):
+                content_parts.append(delta.content)
+                yield {"type": "answer_delta", "text": delta.content}
+
+            # 工具调用（跨 chunk 累积）
+            if getattr(delta, "tool_calls", None):
+                for tc in delta.tool_calls:
+                    idx = tc.index if tc.index is not None else 0
+                    slot = tool_calls_accum.setdefault(idx, {"id": "", "name": "", "args": ""})
+                    if tc.id:
+                        slot["id"] = tc.id
+                    if tc.function:
+                        if tc.function.name:
+                            slot["name"] = tc.function.name
+                        if tc.function.arguments:
+                            slot["args"] += tc.function.arguments
+
+        full_content = "".join(content_parts)
+        ordered = [tool_calls_accum[i] for i in sorted(tool_calls_accum)]
+        # 把 (full_content, ordered) 作为 generator 的 return value
+        return full_content, ordered
+
+
+__all__ = ["FinancialAgent", "AGENT_INTERFACE_VERSION"]

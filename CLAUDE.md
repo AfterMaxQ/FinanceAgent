@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 FinanceAgent is a multi-modal financial quantitative mining agent that combines DeepSeek LLM reasoning with local PyTorch/Transformers quant models. The project uses a **"Dual Brain"** architecture:
 
-- **Left Brain (LLM)**: `FinancialAgent` (`agents/decision_agent.py`) — DeepSeek V3 via OpenAI SDK for function calling, intent routing, and structured report generation.
-- **Right Brain (Quant Tools)**: 7 local analysis tools registered in `agents/Tools/tool_registry.py` — each tool performs specialized financial computation.
+- **Left Brain (LLM)**: `FinancialAgent` (`agents/decision_agent.py`) — DeepSeek V4 Pro via OpenAI SDK for function calling, intent routing, and structured report generation (streaming via `run_stream()`).
+- **Right Brain (Quant Tools)**: 9 local analysis tools registered in `agents/Tools/tool_registry.py` — each tool performs specialized financial computation.
 
 The system is exposed through a **Streamlit** frontend (`frontend/app.py`).
 
@@ -19,9 +19,20 @@ There is a **nested duplicate** `FinanceAgentV2.0/` subdirectory that mirrors th
 
 ### Environment
 
+The project uses `.venv` (Python 3.11, CUDA 12.8) already set up at project root.
+
 ```bash
+# Activate venv (Windows PowerShell)
+.venv\Scripts\activate
+
+# If re-creating from scratch:
 python -m venv .venv
-.venv\Scripts\activate        # Windows
+.venv\Scripts\activate
+
+# Step 1: Install CUDA PyTorch (RTX 40xx/30xx, CUDA 12.8)
+pip install torch==2.7.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# Step 2: Install remaining dependencies
 pip install -r requirements.txt
 ```
 
@@ -48,8 +59,10 @@ python clean_stock_data_vif.py
 ### Running the App
 
 ```bash
-streamlit run app.py
-# or equivalently:
+# Recommended: use run_app.py which applies SSL fix BEFORE streamlit/tornado import
+.venv\Scripts\python.exe run_app.py
+
+# Alternative (may fail on Windows with corrupted system certs):
 streamlit run frontend/app.py
 ```
 
